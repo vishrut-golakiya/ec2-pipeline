@@ -18,6 +18,20 @@ def get_db():
         cursorclass=pymysql.cursors.DictCursor
     )
 
+# Create table if not exists
+def init_db():
+    conn = get_db()
+    with conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    email VARCHAR(255) NOT NULL UNIQUE,
+                    password VARCHAR(255) NOT NULL
+                )
+            """)
+        conn.commit()
+
 @app.route('/')
 def home():
     return redirect(url_for('login'))
@@ -41,20 +55,24 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-        conn = get_db()
-        with conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT * FROM users WHERE email=%s", (email,))
-                if cursor.fetchone():
-                    flash('User already exists')
-                    return redirect(url_for('register'))
-                hashed = generate_password_hash(password)
-                cursor.execute("INSERT INTO users (email, password) VALUES (%s, %s)", (email, hashed))
-                conn.commit()
-        flash('Registration successful. Please log in.')
-        return redirect(url_for('login'))
+        try:
+            email = request.form['email']
+            password = request.form['password']
+            conn = get_db()
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT * FROM users WHERE email=%s", (email,))
+                    if cursor.fetchone():
+                        flash('User already exists')
+                        return redirect(url_for('register'))
+                    hashed = generate_password_hash(password)
+                    cursor.execute("INSERT INTO users (email, password) VALUES (%s, %s)", (email, hashed))
+                    conn.commit()
+            flash('Registration successful. Please log in.')
+            return redirect(url_for('login'))
+        except Exception as e:
+            flash(f'Error: {e}')
+            return redirect(url_for('register'))
     return render_template('register.html')
 
 @app.route('/dashboard')
@@ -69,4 +87,5 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    init_db()  # Initialize DB and table
+    app.run(host='0.0.0.0', port=5000, debug=True)
